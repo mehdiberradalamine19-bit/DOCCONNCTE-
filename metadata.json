@@ -1,0 +1,8 @@
+{
+  "name": "DocConnect - Prototype de Gestion Médicale",
+  "description": "Une plateforme de rendez-vous médicaux à double interface pour les patients et les praticiens, comprenant des systèmes de réservation, des tableaux de bord de planification et la gestion des rendez-vous.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
