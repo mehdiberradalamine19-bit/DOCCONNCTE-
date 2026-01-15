@@ -1,89 +1,159 @@
 
 import React, { useState } from 'react';
-import { UserRole } from './types';
+import { UserRole, Appointment, Patient, PatientInfo } from './types';
 import { PatientDashboard } from './components/PatientInterface';
 import { DoctorDashboard } from './components/DoctorInterface';
-import { Stethoscope, User, ShieldCheck, LogOut, Bell, Settings, Menu, X, HeartPulse } from 'lucide-react';
+import { LoginSignup } from './components/LoginSignup';
+import { HomePage } from './components/HomePage';
+import { MOCK_APPOINTMENTS } from './constants';
+import { Stethoscope, LogOut, Bell, Settings, Menu, X, HeartPulse } from 'lucide-react';
+
+// Wrapper pour gérer l'état de navigation du dashboard docteur
+const DoctorDashboardWrapper: React.FC<{ 
+  appointments: Appointment[]; 
+  onUpdateAppointments: (appts: Appointment[]) => void;
+  showAllPatients?: boolean;
+  onShowAllPatients?: (show: boolean) => void;
+  patients?: PatientInfo;
+}> = ({ appointments, onUpdateAppointments, showAllPatients, onShowAllPatients, patients = {} }) => {
+  return (
+    <DoctorDashboard 
+      appointments={appointments}
+      onUpdateAppointments={onUpdateAppointments}
+      showAllPatients={showAllPatients}
+      onShowAllPatients={onShowAllPatients}
+      patients={patients}
+    />
+  );
+};
 
 const App: React.FC = () => {
-  const [role, setRole] = useState<UserRole>('guest');
+  const [role, setRole] = useState<UserRole | null>(null); // null = non connecté
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [showAllPatientsPage, setShowAllPatientsPage] = useState(false);
+  const [patients, setPatients] = useState<PatientInfo>({});
+  const [currentPatientEmail, setCurrentPatientEmail] = useState<string>('');
 
-  const handleRoleSelect = (selectedRole: UserRole) => {
-    setRole(selectedRole);
+  const handleLogin = (email: string, password: string) => {
+    // Si l'email est admin@gmail.com, accès espace praticien
+    if (email.toLowerCase() === 'admin@gmail.com') {
+      setRole('doctor');
+      setUserName('Docteur Mehdi');
+      setCurrentPatientEmail('');
+    } else {
+      // Sinon, accès espace patient
+      setRole('patient');
+      const emailLower = email.toLowerCase();
+      setCurrentPatientEmail(emailLower);
+      // Chercher le patient dans la base de données
+      const patient = patients[emailLower];
+      if (patient) {
+        // Utiliser le nom complet du patient
+        setUserName(`${patient.firstName} ${patient.name}`);
+      } else {
+        // Si c'est le compte par défaut, afficher "Client"
+        if (emailLower === 'client@default.com') {
+          setUserName('Client');
+        } else {
+          setUserName(email.split('@')[0] || 'Client');
+        }
+      }
+    }
+    setIsAuthenticated(true);
+    setShowLogin(false);
   };
 
-  const LandingPage = () => (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-br from-blue-50 via-white to-slate-100">
-      <div className="max-w-4xl w-full text-center space-y-12">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="p-4 bg-blue-600 rounded-3xl shadow-xl shadow-blue-200">
-             <HeartPulse className="w-12 h-12 text-white" />
-          </div>
-          <h1 className="text-5xl font-black tracking-tight text-slate-900">
-            Doc<span className="text-blue-600">Connect</span>
-          </h1>
-          <p className="text-xl text-slate-600 max-w-xl mx-auto">
-            La nouvelle génération de connectivité médicale. Simple, rapide et sécurisée.
-          </p>
-        </div>
+  const handleSignup = (email: string, password: string, name: string, phone: string, gender: string, age: string) => {
+    // Séparer le nom en prénom et nom
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0] || name;
+    const lastName = nameParts.slice(1).join(' ') || name;
+    
+    const emailLower = email.toLowerCase();
+    
+    // Créer un ID unique pour le patient
+    const patientId = emailLower.replace(/\s+/g, '-');
+    
+    // Stocker les informations du patient
+    const newPatient: Patient = {
+      id: patientId,
+      email: emailLower,
+      name: lastName,
+      firstName: firstName,
+      phone: phone.trim(),
+      gender,
+      age,
+      password
+    };
+    
+    setPatients(prev => ({
+      ...prev,
+      [emailLower]: newPatient
+    }));
+    
+    // Après inscription, on connecte l'utilisateur comme patient
+    setRole('patient');
+    setCurrentPatientEmail(emailLower);
+    setUserName(name);
+    setIsAuthenticated(true);
+    setShowLogin(false);
+  };
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <button 
-            onClick={() => handleRoleSelect('patient')}
-            className="group relative overflow-hidden bg-white p-10 rounded-3xl border border-slate-200 hover:border-blue-500 hover:shadow-2xl transition-all duration-300"
-          >
-            <div className="absolute inset-0 bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 space-y-6">
-              <div className="mx-auto w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <User className="w-10 h-10 text-blue-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Espace Patient</h2>
-                <p className="text-slate-500">Prenez rendez-vous, consultez votre historique et échangez avec vos praticiens.</p>
-              </div>
-            </div>
-          </button>
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setRole(null);
+    setUserName('');
+    setCurrentPatientEmail('');
+  };
 
-          <button 
-            onClick={() => handleRoleSelect('doctor')}
-            className="group relative overflow-hidden bg-white p-10 rounded-3xl border border-slate-200 hover:border-emerald-500 hover:shadow-2xl transition-all duration-300"
-          >
-            <div className="absolute inset-0 bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative z-10 space-y-6">
-              <div className="mx-auto w-20 h-20 bg-emerald-100 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Stethoscope className="w-10 h-10 text-emerald-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Espace Praticien</h2>
-                <p className="text-slate-500">Gérez votre planning, validez les demandes et développez votre activité.</p>
-              </div>
-            </div>
-          </button>
-        </div>
+  const handleBookAppointment = () => {
+    // Si non connecté, rediriger vers la connexion
+    if (!isAuthenticated) {
+      setShowLogin(true);
+    } else {
+      // Si connecté, on peut directement accéder à la réservation
+      // Pour l'instant, on reste sur le dashboard patient
+    }
+  };
 
-        <div className="flex items-center justify-center gap-2 text-slate-400 font-medium">
-          <ShieldCheck className="w-4 h-4" />
-          <span className="text-sm">Conforme RGPD & Données Chiffrées</span>
-        </div>
-      </div>
-    </div>
-  );
+  // Afficher la page de connexion/inscription
+  if (showLogin) {
+    return <LoginSignup onLogin={handleLogin} onSignup={handleSignup} onBack={() => setShowLogin(false)} />;
+  }
 
-  if (role === 'guest') {
-    return <LandingPage />;
+  // Afficher la page d'accueil si non connecté
+  if (!isAuthenticated || role === null) {
+    return <HomePage onBookAppointment={handleBookAppointment} onLogin={() => setShowLogin(true)} />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen flex flex-col relative">
+      {/* Background Image */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat bg-fixed z-0"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?q=80&w=2070&auto=format&fit=crop')`,
+        }}
+      >
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-blue-900/50 to-indigo-900/60 backdrop-blur-[2px]"></div>
+        <div className="absolute inset-0 bg-slate-50/90"></div>
+      </div>
+
+      {/* Content */}
+      <div className="relative z-10 flex flex-col min-h-screen">
       {/* Navigation Header */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
               <div 
                 className="flex items-center gap-2 cursor-pointer" 
-                onClick={() => setRole('guest')}
+                onClick={handleLogout}
               >
                 <div className="p-2 bg-blue-600 rounded-xl">
                   <HeartPulse className="w-6 h-6 text-white" />
@@ -103,8 +173,19 @@ const App: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <a href="#" className="border-blue-500 text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold">Planning</a>
-                    <a href="#" className="border-transparent text-slate-500 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Patients</a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); }}
+                      className={`${!showAllPatientsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Planning
+                    </a>
+                    <button 
+                      onClick={() => setShowAllPatientsPage(true)}
+                      className={`${showAllPatientsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Patients
+                    </button>
                     <a href="#" className="border-transparent text-slate-500 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Analyses</a>
                   </>
                 )}
@@ -123,7 +204,7 @@ const App: React.FC = () => {
 
               <div className="flex items-center gap-3 pl-2">
                  <div className="hidden sm:block text-right">
-                    <p className="text-sm font-bold text-slate-900">{role === 'patient' ? 'John Doe' : 'Dr. Sarah Martin'}</p>
+                    <p className="text-sm font-bold text-slate-900">{userName || (role === 'patient' ? 'Patient' : 'Médecin')}</p>
                     <p className="text-xs font-medium text-slate-500 capitalize">{role === 'patient' ? 'Patient' : 'Médecin'}</p>
                  </div>
                  <img 
@@ -132,7 +213,7 @@ const App: React.FC = () => {
                     className="w-10 h-10 rounded-xl object-cover ring-2 ring-blue-50 ring-offset-2"
                  />
                  <button 
-                  onClick={() => setRole('guest')}
+                  onClick={handleLogout}
                   className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                   title="Déconnexion"
                  >
@@ -153,20 +234,46 @@ const App: React.FC = () => {
         {/* Mobile Navigation */}
         {mobileMenuOpen && (
           <div className="md:hidden bg-white border-t border-slate-100 p-4 space-y-2">
-            <a href="#" className="block px-4 py-2 text-blue-600 font-bold bg-blue-50 rounded-lg">Tableau de bord</a>
-            <a href="#" className="block px-4 py-2 text-slate-600">Messages</a>
-            <a href="#" className="block px-4 py-2 text-slate-600">Paramètres</a>
+            {role === 'patient' ? (
+              <>
+                <a href="#" className="block px-4 py-2 text-blue-600 font-bold bg-blue-50 rounded-lg">Tableau de bord</a>
+                <a href="#" className="block px-4 py-2 text-slate-600">Messages</a>
+                <a href="#" className="block px-4 py-2 text-slate-600">Paramètres</a>
+              </>
+            ) : (
+              <>
+                <a href="#" className="block px-4 py-2 text-blue-600 font-bold bg-blue-50 rounded-lg">Planning</a>
+                <a href="#" className="block px-4 py-2 text-slate-600">Patients</a>
+                <a href="#" className="block px-4 py-2 text-slate-600">Analyses</a>
+              </>
+            )}
           </div>
         )}
       </nav>
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {role === 'patient' ? <PatientDashboard /> : <DoctorDashboard />}
+        {role === 'patient' ? (
+          <PatientDashboard 
+            userName={userName} 
+            appointments={appointments}
+            onAddAppointment={(appt) => setAppointments([appt, ...appointments])}
+            onUpdateAppointments={setAppointments}
+            patientEmail={currentPatientEmail}
+          />
+        ) : (
+          <DoctorDashboardWrapper 
+            appointments={appointments}
+            onUpdateAppointments={setAppointments}
+            showAllPatients={showAllPatientsPage}
+            onShowAllPatients={setShowAllPatientsPage}
+            patients={patients}
+          />
+        )}
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-10 mt-auto">
+      <footer className="bg-white/95 backdrop-blur-xl border-t border-slate-200/50 py-10 mt-auto relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-slate-400 text-sm font-medium">© 2024 DocConnect. Tous droits réservés.</p>
           <div className="mt-4 flex justify-center gap-6">
@@ -176,6 +283,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 };

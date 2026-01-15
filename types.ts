@@ -15,6 +15,7 @@ export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'complet
 export interface Appointment {
   id: string;
   patientName: string;
+  patientEmail?: string;
   doctorName: string;
   specialty: string;
   date: string;
@@ -28,4 +29,19 @@ export interface Notification {
   message: string;
   time: string;
   read: boolean;
+}
+
+export interface Patient {
+  id: string;
+  email: string;
+  name: string;
+  firstName: string;
+  phone: string;
+  gender: string;
+  age: string;
+  password: string;
+}
+
+export interface PatientInfo {
+  [email: string]: Patient;
 }
