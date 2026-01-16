@@ -98,7 +98,7 @@ export const LoginSignup: React.FC<LoginSignupProps> = ({ onLogin, onSignup, onB
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Jean Dupont"
-                      className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900"
                     />
                   </div>
                 </div>
@@ -115,7 +115,7 @@ export const LoginSignup: React.FC<LoginSignupProps> = ({ onLogin, onSignup, onB
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       placeholder="06 12 34 56 78"
-                      className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900"
                     />
                   </div>
                 </div>
@@ -152,7 +152,7 @@ export const LoginSignup: React.FC<LoginSignupProps> = ({ onLogin, onSignup, onB
                         placeholder="25"
                         min="1"
                         max="120"
-                        className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                        className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900"
                       />
                     </div>
                   </div>
@@ -172,7 +172,7 @@ export const LoginSignup: React.FC<LoginSignupProps> = ({ onLogin, onSignup, onB
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="votre.email@exemple.com"
-                  className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900"
                 />
               </div>
             </div>
@@ -189,7 +189,7 @@ export const LoginSignup: React.FC<LoginSignupProps> = ({ onLogin, onSignup, onB
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-12 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-slate-900"
                 />
               </div>
             </div>

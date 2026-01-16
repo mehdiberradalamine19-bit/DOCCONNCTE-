@@ -1,12 +1,16 @@
 
-import React, { useState } from 'react';
-import { UserRole, Appointment, Patient, PatientInfo } from './types';
+import React, { useState, useEffect } from 'react';
+import { UserRole, Appointment, Patient, PatientInfo, MedicalAnalysis, Doctor } from './types';
 import { PatientDashboard } from './components/PatientInterface';
 import { DoctorDashboard } from './components/DoctorInterface';
+import { AnalysesInterface } from './components/AnalysesInterface';
 import { LoginSignup } from './components/LoginSignup';
 import { HomePage } from './components/HomePage';
+import { DoctorsPage } from './components/DoctorsPage';
+import { WaitingRoom } from './components/WaitingRoom';
 import { MOCK_APPOINTMENTS } from './constants';
 import { Stethoscope, LogOut, Bell, Settings, Menu, X, HeartPulse } from 'lucide-react';
+import { appointmentDB, patientDB, analysisDB, initDatabase } from './database';
 
 // Wrapper pour gérer l'état de navigation du dashboard docteur
 const DoctorDashboardWrapper: React.FC<{ 
@@ -33,12 +37,51 @@ const App: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userName, setUserName] = useState('');
-  const [appointments, setAppointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [showAllPatientsPage, setShowAllPatientsPage] = useState(false);
+  const [showAnalysesPage, setShowAnalysesPage] = useState(false);
+  const [showDoctorsPage, setShowDoctorsPage] = useState(false);
+  const [showWaitingRoom, setShowWaitingRoom] = useState(false);
   const [patients, setPatients] = useState<PatientInfo>({});
   const [currentPatientEmail, setCurrentPatientEmail] = useState<string>('');
+  const [analyses, setAnalyses] = useState<MedicalAnalysis[]>([]);
+  const [patientView, setPatientView] = useState<'overview' | 'booking' | 'history' | 'doctors'>('overview');
+  const [doctors, setDoctors] = useState<Doctor[]>([]);
 
-  const handleLogin = (email: string, password: string) => {
+  // Charger les données depuis la base de données au démarrage
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Initialiser la base de données avec les données mock si elle est vide
+        await initDatabase(MOCK_APPOINTMENTS);
+        
+        // Charger les rendez-vous
+        const loadedAppointments = await appointmentDB.getAll();
+        setAppointments(loadedAppointments);
+        
+        // Charger les patients
+        const loadedPatients = await patientDB.getAll();
+        if (Object.keys(loadedPatients).length > 0) {
+          setPatients(loadedPatients);
+        }
+        
+        // Charger les analyses
+        const loadedAnalyses = await analysisDB.getAll();
+        setAnalyses(loadedAnalyses);
+        
+        // Charger les médecins (pour l'instant depuis constants, plus tard depuis la DB)
+        // TODO: Créer une table doctors dans Supabase
+        const { DOCTORS } = await import('./constants');
+        setDoctors(DOCTORS);
+      } catch (error) {
+        console.error('Erreur lors du chargement des données:', error);
+      }
+    };
+    
+    loadData();
+  }, []);
+
+  const handleLogin = async (email: string, password: string) => {
     // Si l'email est admin@gmail.com, accès espace praticien
     if (email.toLowerCase() === 'admin@gmail.com') {
       setRole('doctor');
@@ -50,7 +93,7 @@ const App: React.FC = () => {
       const emailLower = email.toLowerCase();
       setCurrentPatientEmail(emailLower);
       // Chercher le patient dans la base de données
-      const patient = patients[emailLower];
+      const patient = await patientDB.getByEmail(emailLower) || patients[emailLower];
       if (patient) {
         // Utiliser le nom complet du patient
         setUserName(`${patient.firstName} ${patient.name}`);
@@ -67,7 +110,7 @@ const App: React.FC = () => {
     setShowLogin(false);
   };
 
-  const handleSignup = (email: string, password: string, name: string, phone: string, gender: string, age: string) => {
+  const handleSignup = async (email: string, password: string, name: string, phone: string, gender: string, age: string) => {
     // Séparer le nom en prénom et nom
     const nameParts = name.trim().split(' ');
     const firstName = nameParts[0] || name;
@@ -90,10 +133,19 @@ const App: React.FC = () => {
       password
     };
     
-    setPatients(prev => ({
-      ...prev,
-      [emailLower]: newPatient
-    }));
+    // Sauvegarder dans la base de données
+    try {
+      await patientDB.save(newPatient);
+      
+      // Mettre à jour l'état local
+      setPatients(prev => ({
+        ...prev,
+        [emailLower]: newPatient
+      }));
+    } catch (error) {
+      console.error('Erreur lors de l\'inscription:', error);
+      // On continue quand même pour permettre l'inscription
+    }
     
     // Après inscription, on connecte l'utilisateur comme patient
     setRole('patient');
@@ -131,23 +183,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex flex-col relative">
-      {/* Background Image */}
-      <div 
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat bg-fixed z-0"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?q=80&w=2070&auto=format&fit=crop')`,
-        }}
-      >
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/60 via-blue-900/50 to-indigo-900/60 backdrop-blur-[2px]"></div>
-        <div className="absolute inset-0 bg-slate-50/90"></div>
-      </div>
-
+    <div className="min-h-screen flex flex-col bg-white">
       {/* Content */}
-      <div className="relative z-10 flex flex-col min-h-screen">
+      <div className="flex flex-col min-h-screen">
       {/* Navigation Header */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-slate-200/50 shadow-sm">
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-20">
             <div className="flex items-center">
@@ -167,26 +207,58 @@ const App: React.FC = () => {
               <div className="hidden md:ml-10 md:flex md:space-x-8">
                 {role === 'patient' ? (
                   <>
-                    <a href="#" className="border-blue-500 text-slate-900 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold">Tableau de bord</a>
-                    <a href="#" className="border-transparent text-slate-500 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Médecins</a>
-                    <a href="#" className="border-transparent text-slate-500 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Historique</a>
+                    <button 
+                      onClick={() => setPatientView('overview')}
+                      className={`${patientView === 'overview' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Tableau de bord
+                    </button>
+                    <button 
+                      onClick={() => { setPatientView('doctors'); setMobileMenuOpen(false); }}
+                      className={`${patientView === 'doctors' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Médecins
+                    </button>
+                    <button 
+                      onClick={() => setPatientView('history')}
+                      className={`${patientView === 'history' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Historique
+                    </button>
                   </>
                 ) : (
                   <>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); }}
-                      className={`${!showAllPatientsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Planning
                     </a>
                     <button 
-                      onClick={() => setShowAllPatientsPage(true)}
-                      className={`${showAllPatientsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); }}
+                      className={`${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Salle d'attente
+                    </button>
+                    <button 
+                      onClick={() => { setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Patients
                     </button>
-                    <a href="#" className="border-transparent text-slate-500 hover:text-slate-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium">Analyses</a>
+                    <button 
+                      onClick={() => { setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Analyses
+                    </button>
+                    <button 
+                      onClick={() => { setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); }}
+                      className={`${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Médecins
+                    </button>
                   </>
                 )}
               </div>
@@ -236,17 +308,64 @@ const App: React.FC = () => {
           <div className="md:hidden bg-white border-t border-slate-100 p-4 space-y-2">
             {role === 'patient' ? (
               <>
-                <a href="#" className="block px-4 py-2 text-blue-600 font-bold bg-blue-50 rounded-lg">Tableau de bord</a>
-                <a href="#" className="block px-4 py-2 text-slate-600">Messages</a>
-                <a href="#" className="block px-4 py-2 text-slate-600">Paramètres</a>
+                <button 
+                  onClick={(e) => { e.preventDefault(); setPatientView('overview'); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'overview' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                >
+                  Tableau de bord
+                </button>
+                <button 
+                  onClick={(e) => { e.preventDefault(); setPatientView('doctors'); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'doctors' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                >
+                  Médecins
+                </button>
+                <button 
+                  onClick={(e) => { e.preventDefault(); setPatientView('history'); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'history' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                >
+                  Historique
+                </button>
               </>
-            ) : (
-              <>
-                <a href="#" className="block px-4 py-2 text-blue-600 font-bold bg-blue-50 rounded-lg">Planning</a>
-                <a href="#" className="block px-4 py-2 text-slate-600">Patients</a>
-                <a href="#" className="block px-4 py-2 text-slate-600">Analyses</a>
-              </>
-            )}
+                ) : (
+                  <>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`block px-4 py-2 ${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Planning
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); }}
+                      className={`block px-4 py-2 ${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Salle d'attente
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`block px-4 py-2 ${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Patients
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`block px-4 py-2 ${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Analyses
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); }}
+                      className={`block px-4 py-2 ${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Médecins
+                    </a>
+                  </>
+                )}
           </div>
         )}
       </nav>
@@ -257,14 +376,88 @@ const App: React.FC = () => {
           <PatientDashboard 
             userName={userName} 
             appointments={appointments}
-            onAddAppointment={(appt) => setAppointments([appt, ...appointments])}
-            onUpdateAppointments={setAppointments}
+            onAddAppointment={async (appt) => {
+              try {
+                console.log('Ajout du rendez-vous:', appt);
+                await appointmentDB.add(appt);
+                console.log('Rendez-vous ajouté avec succès dans Supabase');
+                setAppointments([appt, ...appointments]);
+              } catch (error) {
+                console.error('Erreur lors de l\'ajout du rendez-vous:', error);
+                alert('Erreur lors de la sauvegarde du rendez-vous. Vérifiez la console pour plus de détails.');
+              }
+            }}
+            onUpdateAppointments={async (appts) => {
+              try {
+                await appointmentDB.saveAll(appts);
+                setAppointments(appts);
+              } catch (error) {
+                console.error('Erreur lors de la mise à jour des rendez-vous:', error);
+              }
+            }}
             patientEmail={currentPatientEmail}
+            analyses={analyses.filter(a => a.patientEmail?.toLowerCase() === currentPatientEmail.toLowerCase())}
+            initialView={patientView}
+            onViewChange={setPatientView}
+          />
+        ) : showWaitingRoom ? (
+          <WaitingRoom
+            appointments={appointments}
+            patients={patients}
+            onUpdateAppointments={async (appts) => {
+              try {
+                await appointmentDB.saveAll(appts);
+                setAppointments(appts);
+              } catch (error) {
+                console.error('Erreur lors de la mise à jour des rendez-vous:', error);
+              }
+            }}
+          />
+        ) : showAnalysesPage ? (
+          <AnalysesInterface
+            patients={patients}
+            analyses={analyses}
+            onUpdateAnalyses={async (analyses) => {
+              try {
+                await analysisDB.saveAll(analyses);
+                setAnalyses(analyses);
+              } catch (error) {
+                console.error('Erreur lors de la mise à jour des analyses:', error);
+              }
+            }}
+            onAddAnalysis={async (analysis) => {
+              try {
+                await analysisDB.add(analysis);
+                setAnalyses([analysis, ...analyses]);
+              } catch (error) {
+                console.error('Erreur lors de l\'ajout de l\'analyse:', error);
+              }
+            }}
+          />
+        ) : showDoctorsPage ? (
+          <DoctorsPage
+            doctors={doctors}
+            onAddDoctor={(doctor) => {
+              setDoctors([...doctors, doctor]);
+            }}
+            onUpdateDoctor={(doctor) => {
+              setDoctors(doctors.map(d => d.id === doctor.id ? doctor : d));
+            }}
+            onDeleteDoctor={(id) => {
+              setDoctors(doctors.filter(d => d.id !== id));
+            }}
           />
         ) : (
           <DoctorDashboardWrapper 
             appointments={appointments}
-            onUpdateAppointments={setAppointments}
+            onUpdateAppointments={async (appts) => {
+              try {
+                await appointmentDB.saveAll(appts);
+                setAppointments(appts);
+              } catch (error) {
+                console.error('Erreur lors de la mise à jour des rendez-vous:', error);
+              }
+            }}
             showAllPatients={showAllPatientsPage}
             onShowAllPatients={setShowAllPatientsPage}
             patients={patients}
@@ -273,7 +466,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-white/95 backdrop-blur-xl border-t border-slate-200/50 py-10 mt-auto relative z-10">
+      <footer className="bg-white border-t border-slate-200 py-10 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-slate-400 text-sm font-medium">© 2024 DocConnect. Tous droits réservés.</p>
           <div className="mt-4 flex justify-center gap-6">

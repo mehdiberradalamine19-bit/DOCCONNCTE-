@@ -12,4 +12,29 @@ export const DOCTORS: Doctor[] = [
   }
 ];
 
-export const MOCK_APPOINTMENTS: Appointment[] = [];
+export const MOCK_APPOINTMENTS: Appointment[] = [
+  {
+    id: '1',
+    patientName: 'Client',
+    patientEmail: 'client@default.com',
+    doctorName: 'Docteur Mehdi',
+    specialty: 'Médecin Généraliste',
+    date: `${new Date().getDate()} ${['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][new Date().getMonth()]} ${new Date().getFullYear()}`,
+    time: '10:00',
+    status: 'confirmed',
+    type: 'In-person',
+    reason: 'Consultation de routine'
+  },
+  {
+    id: '2',
+    patientName: 'Client',
+    patientEmail: 'client@default.com',
+    doctorName: 'Docteur Mehdi',
+    specialty: 'Médecin Généraliste',
+    date: `${new Date().getDate() + 1} ${['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'][new Date().getMonth()]} ${new Date().getFullYear()}`,
+    time: '14:30',
+    status: 'pending',
+    type: 'Video Call',
+    reason: 'Suivi post-opératoire'
+  }
+];
