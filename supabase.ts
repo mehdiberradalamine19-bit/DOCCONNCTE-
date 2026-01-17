@@ -43,6 +43,16 @@ export interface PatientRow {
   gender: string;
   age: string;
   password: string;
+  blood_type?: string;
+  address?: string;
+  city?: string;
+  postal_code?: string;
+  date_of_birth?: string;
+  allergies?: string;
+  medical_history?: string;
+  emergency_contact?: string;
+  emergency_phone?: string;
+  doctor_notes?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -121,18 +131,35 @@ export const rowToAppointment = (row: any): Appointment => ({
   actualEndTime: row.actual_end_time,
 });
 
-export const patientToRow = (patient: Patient): PatientRow => ({
-  id: patient.id,
-  email: patient.email,
-  name: patient.name,
-  first_name: patient.firstName,
-  phone: patient.phone,
-  gender: patient.gender,
-  age: patient.age,
-  password: patient.password,
-});
+export const patientToRow = (patient: Patient): PatientRow => {
+  // Créer l'objet row en incluant TOUS les champs, même s'ils sont vides
+  // Utiliser null pour les valeurs vides au lieu de undefined pour Supabase
+  const row: any = {
+    id: patient.id,
+    email: patient.email,
+    name: patient.name,
+    first_name: patient.firstName,
+    phone: patient.phone || null,
+    gender: patient.gender || null,
+    age: patient.age || null,
+    password: patient.password,
+    // Inclure TOUS les champs optionnels, même s'ils sont vides
+    blood_type: patient.bloodType || null,
+    address: patient.address || null,
+    city: patient.city || null,
+    postal_code: patient.postalCode || null,
+    date_of_birth: patient.dateOfBirth || null,
+    allergies: patient.allergies || null,
+    medical_history: patient.medicalHistory || null,
+    emergency_contact: patient.emergencyContact || null,
+    emergency_phone: patient.emergencyPhone || null,
+    doctor_notes: patient.doctorNotes || null,
+  };
+  
+  return row as PatientRow;
+};
 
-export const rowToPatient = (row: PatientRow): Patient => ({
+export const rowToPatient = (row: PatientRow | any): Patient => ({
   id: row.id,
   email: row.email,
   name: row.name,
@@ -141,6 +168,16 @@ export const rowToPatient = (row: PatientRow): Patient => ({
   gender: row.gender,
   age: row.age,
   password: row.password,
+  bloodType: row.blood_type || undefined,
+  address: row.address || undefined,
+  city: row.city || undefined,
+  postalCode: row.postal_code || undefined,
+  dateOfBirth: row.date_of_birth || undefined,
+  allergies: row.allergies || undefined,
+  medicalHistory: row.medical_history || undefined,
+  emergencyContact: row.emergency_contact || undefined,
+  emergencyPhone: row.emergency_phone || undefined,
+  doctorNotes: row.doctor_notes || undefined,
 });
 
 export const analysisToRow = (analysis: MedicalAnalysis): AnalysisRow => ({

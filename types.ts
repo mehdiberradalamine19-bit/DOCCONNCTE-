@@ -110,6 +110,16 @@ export interface Patient {
   gender: string;
   age: string;
   password: string;
+  bloodType?: string; // Type de sang : A+, A-, B+, B-, AB+, AB-, O+, O-
+  address?: string; // Adresse
+  city?: string; // Ville
+  postalCode?: string; // Code postal
+  dateOfBirth?: string; // Date de naissance
+  allergies?: string; // Allergies
+  medicalHistory?: string; // Antécédents médicaux
+  emergencyContact?: string; // Contact d'urgence
+  emergencyPhone?: string; // Téléphone d'urgence
+  doctorNotes?: string; // Notes du médecin
 }
 
 export interface PatientInfo {

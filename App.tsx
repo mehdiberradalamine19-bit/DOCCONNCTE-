@@ -8,9 +8,12 @@ import { LoginSignup } from './components/LoginSignup';
 import { HomePage } from './components/HomePage';
 import { DoctorsPage } from './components/DoctorsPage';
 import { WaitingRoom } from './components/WaitingRoom';
+import { PatientInfoForm } from './components/PatientInfoForm';
+import { WorkingHoursManagement } from './components/WorkingHoursManagement';
 import { MOCK_APPOINTMENTS } from './constants';
 import { Stethoscope, LogOut, Bell, Settings, Menu, X, HeartPulse } from 'lucide-react';
-import { appointmentDB, patientDB, analysisDB, initDatabase } from './database';
+import { appointmentDB, patientDB, analysisDB, initDatabase, workingHoursDB } from './database';
+import { DoctorPlanningSettings } from './types';
 
 // Wrapper pour gérer l'état de navigation du dashboard docteur
 const DoctorDashboardWrapper: React.FC<{ 
@@ -42,9 +45,13 @@ const App: React.FC = () => {
   const [showAnalysesPage, setShowAnalysesPage] = useState(false);
   const [showDoctorsPage, setShowDoctorsPage] = useState(false);
   const [showWaitingRoom, setShowWaitingRoom] = useState(false);
+  const [showPatientInfo, setShowPatientInfo] = useState(false);
+  const [patientInfoKey, setPatientInfoKey] = useState(0); // Compteur pour forcer le remount
+  const [showWorkingHours, setShowWorkingHours] = useState(false);
   const [patients, setPatients] = useState<PatientInfo>({});
   const [currentPatientEmail, setCurrentPatientEmail] = useState<string>('');
   const [analyses, setAnalyses] = useState<MedicalAnalysis[]>([]);
+  const [doctorSettingsMap, setDoctorSettingsMap] = useState<Record<string, DoctorPlanningSettings>>({});
   const [patientView, setPatientView] = useState<'overview' | 'booking' | 'history' | 'doctors'>('overview');
   const [doctors, setDoctors] = useState<Doctor[]>([]);
 
@@ -73,6 +80,10 @@ const App: React.FC = () => {
         // TODO: Créer une table doctors dans Supabase
         const { DOCTORS } = await import('./constants');
         setDoctors(DOCTORS);
+        
+        // Charger les horaires des médecins
+        const loadedWorkingHours = await workingHoursDB.getAll();
+        setDoctorSettingsMap(loadedWorkingHours);
       } catch (error) {
         console.error('Erreur lors du chargement des données:', error);
       }
@@ -80,6 +91,58 @@ const App: React.FC = () => {
     
     loadData();
   }, []);
+
+  // Recharger les horaires quand on revient du panneau d'horaires
+  useEffect(() => {
+    const reloadWorkingHours = async () => {
+      if (!showWorkingHours) {
+        // Recharger les horaires depuis Supabase
+        try {
+          const loadedWorkingHours = await workingHoursDB.getAll();
+          setDoctorSettingsMap(loadedWorkingHours);
+        } catch (error) {
+          console.error('Erreur lors du rechargement des horaires:', error);
+        }
+      }
+    };
+    
+    reloadWorkingHours();
+  }, [showWorkingHours]);
+
+  // Recharger les données du patient quand on affiche la page "Mes Informations"
+  useEffect(() => {
+    const reloadPatientData = async () => {
+      if (showPatientInfo && role === 'patient' && currentPatientEmail) {
+        try {
+          console.log('[App] Rechargement des données patient pour:', currentPatientEmail);
+          // Recharger les patients depuis Supabase pour avoir les données les plus récentes
+          const loadedPatients = await patientDB.getAll();
+          console.log('[App] Patients chargés:', Object.keys(loadedPatients));
+          
+          setPatients(loadedPatients);
+          
+          // Recharger aussi le patient spécifique pour mettre à jour le nom d'utilisateur
+          const emailLower = currentPatientEmail.toLowerCase();
+          const patient = loadedPatients[emailLower];
+          if (patient) {
+            console.log('[App] Patient trouvé:', patient.firstName, patient.name);
+            setUserName(`${patient.firstName} ${patient.name}`);
+          } else {
+            console.log('[App] Patient non trouvé pour:', emailLower);
+          }
+        } catch (error) {
+          console.error('[App] Erreur lors du rechargement des données patient:', error);
+        }
+      }
+    };
+    
+    // Attendre un peu pour s'assurer que le composant est monté
+    const timeoutId = setTimeout(() => {
+      reloadPatientData();
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
+  }, [showPatientInfo, role, currentPatientEmail]);
 
   const handleLogin = async (email: string, password: string) => {
     // Si l'email est admin@gmail.com, accès espace praticien
@@ -133,18 +196,56 @@ const App: React.FC = () => {
       password
     };
     
+    console.log('[App.handleSignup] Création d\'un nouveau patient:', {
+      email: emailLower,
+      firstName: firstName,
+      name: lastName,
+      phone: phone.trim(),
+    });
+    
     // Sauvegarder dans la base de données
     try {
       await patientDB.save(newPatient);
+      console.log('[App.handleSignup] Patient sauvegardé avec succès dans Supabase');
       
-      // Mettre à jour l'état local
+      // Recharger les patients depuis Supabase pour avoir les données les plus récentes
+      const loadedPatients = await patientDB.getAll();
+      console.log('[App.handleSignup] Patients rechargés:', Object.keys(loadedPatients));
+      
+      // Mettre à jour l'état local avec les données rechargées
+      setPatients(loadedPatients);
+      
+      // S'assurer que le nouveau patient est dans l'état
+      if (loadedPatients[emailLower]) {
+        console.log('[App.handleSignup] Nouveau patient trouvé dans l\'état:', loadedPatients[emailLower]);
+      } else {
+        console.warn('[App.handleSignup] Nouveau patient non trouvé dans l\'état, ajout manuel');
+        setPatients(prev => ({
+          ...prev,
+          [emailLower]: newPatient
+        }));
+      }
+    } catch (error: any) {
+      console.error('[App.handleSignup] Erreur lors de l\'inscription:', error);
+      console.error('[App.handleSignup] Détails de l\'erreur:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+      });
+      
+      // Afficher une alerte à l'utilisateur avec les détails de l'erreur
+      const errorMessage = error?.message || error?.details || 'Erreur inconnue lors de l\'inscription';
+      alert(`Erreur lors de l'inscription: ${errorMessage}\n\nVérifiez la console (F12) pour plus de détails.`);
+      
+      // En cas d'erreur, ajouter quand même dans l'état local pour permettre la connexion
       setPatients(prev => ({
         ...prev,
         [emailLower]: newPatient
       }));
-    } catch (error) {
-      console.error('Erreur lors de l\'inscription:', error);
-      // On continue quand même pour permettre l'inscription
+      
+      // Ne pas relancer l'erreur pour permettre à l'utilisateur de continuer malgré l'erreur
+      // throw error;
     }
     
     // Après inscription, on connecte l'utilisateur comme patient
@@ -208,56 +309,72 @@ const App: React.FC = () => {
                 {role === 'patient' ? (
                   <>
                     <button 
-                      onClick={() => setPatientView('overview')}
-                      className={`${patientView === 'overview' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setPatientView('overview'); setShowPatientInfo(false); }}
+                      className={`${patientView === 'overview' && !showPatientInfo ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Tableau de bord
                     </button>
                     <button 
-                      onClick={() => { setPatientView('doctors'); setMobileMenuOpen(false); }}
-                      className={`${patientView === 'doctors' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setPatientView('doctors'); setShowPatientInfo(false); setMobileMenuOpen(false); }}
+                      className={`${patientView === 'doctors' && !showPatientInfo ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Médecins
                     </button>
                     <button 
-                      onClick={() => setPatientView('history')}
-                      className={`${patientView === 'history' ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setPatientView('history'); setShowPatientInfo(false); }}
+                      className={`${patientView === 'history' && !showPatientInfo ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Historique
+                    </button>
+                    <button 
+                      onClick={() => { 
+                        setShowPatientInfo(true); 
+                        setPatientInfoKey(prev => prev + 1); // Incrémenter pour forcer le remount
+                        setMobileMenuOpen(false); 
+                      }}
+                      className={`${showPatientInfo ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Mes Informations
                     </button>
                   </>
                 ) : (
                   <>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Planning
                     </a>
                     <button 
-                      onClick={() => { setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); }}
-                      className={`${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWorkingHours(false); }}
+                      className={`${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWorkingHours ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Salle d'attente
                     </button>
                     <button 
-                      onClick={() => { setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Patients
                     </button>
                     <button 
-                      onClick={() => { setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Analyses
                     </button>
                     <button 
-                      onClick={() => { setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); }}
-                      className={`${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                      onClick={() => { setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom && !showWorkingHours ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
                     >
                       Médecins
+                    </button>
+                    <button 
+                      onClick={() => { setShowWorkingHours(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`${showWorkingHours && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'border-blue-500 text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-700'} inline-flex items-center px-1 pt-1 border-b-2 text-sm font-bold`}
+                    >
+                      Horaires
                     </button>
                   </>
                 )}
@@ -309,60 +426,78 @@ const App: React.FC = () => {
             {role === 'patient' ? (
               <>
                 <button 
-                  onClick={(e) => { e.preventDefault(); setPatientView('overview'); setMobileMenuOpen(false); }}
-                  className={`block w-full text-left px-4 py-2 ${patientView === 'overview' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                  onClick={(e) => { e.preventDefault(); setPatientView('overview'); setShowPatientInfo(false); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'overview' && !showPatientInfo ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                 >
                   Tableau de bord
                 </button>
                 <button 
-                  onClick={(e) => { e.preventDefault(); setPatientView('doctors'); setMobileMenuOpen(false); }}
-                  className={`block w-full text-left px-4 py-2 ${patientView === 'doctors' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                  onClick={(e) => { e.preventDefault(); setPatientView('doctors'); setShowPatientInfo(false); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'doctors' && !showPatientInfo ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                 >
                   Médecins
                 </button>
                 <button 
-                  onClick={(e) => { e.preventDefault(); setPatientView('history'); setMobileMenuOpen(false); }}
-                  className={`block w-full text-left px-4 py-2 ${patientView === 'history' ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                  onClick={(e) => { e.preventDefault(); setPatientView('history'); setShowPatientInfo(false); setMobileMenuOpen(false); }}
+                  className={`block w-full text-left px-4 py-2 ${patientView === 'history' && !showPatientInfo ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                 >
                   Historique
+                </button>
+                <button 
+                  onClick={(e) => { 
+                    e.preventDefault(); 
+                    setShowPatientInfo(true); 
+                    setPatientInfoKey(prev => prev + 1); // Incrémenter pour forcer le remount
+                    setMobileMenuOpen(false); 
+                  }}
+                  className={`block w-full text-left px-4 py-2 ${showPatientInfo ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                >
+                  Mes Informations
                 </button>
               </>
                 ) : (
                   <>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`block px-4 py-2 ${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`block px-4 py-2 ${!showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                     >
                       Planning
                     </a>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); }}
-                      className={`block px-4 py-2 ${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                      onClick={(e) => { e.preventDefault(); setShowWaitingRoom(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWorkingHours(false); }}
+                      className={`block px-4 py-2 ${showWaitingRoom && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWorkingHours ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                     >
                       Salle d'attente
                     </a>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`block px-4 py-2 ${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                      onClick={(e) => { e.preventDefault(); setShowAllPatientsPage(true); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`block px-4 py-2 ${showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                     >
                       Patients
                     </a>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
-                      className={`block px-4 py-2 ${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                      onClick={(e) => { e.preventDefault(); setShowAnalysesPage(true); setShowAllPatientsPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`block px-4 py-2 ${showAnalysesPage && !showAllPatientsPage && !showDoctorsPage && !showWaitingRoom && !showWorkingHours ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                     >
                       Analyses
                     </a>
                     <a 
                       href="#" 
-                      onClick={(e) => { e.preventDefault(); setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); }}
-                      className={`block px-4 py-2 ${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                      onClick={(e) => { e.preventDefault(); setShowDoctorsPage(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowWaitingRoom(false); setShowWorkingHours(false); }}
+                      className={`block px-4 py-2 ${showDoctorsPage && !showAllPatientsPage && !showAnalysesPage && !showWaitingRoom && !showWorkingHours ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
                     >
                       Médecins
+                    </a>
+                    <a 
+                      href="#" 
+                      onClick={(e) => { e.preventDefault(); setShowWorkingHours(true); setShowAllPatientsPage(false); setShowAnalysesPage(false); setShowDoctorsPage(false); setShowWaitingRoom(false); }}
+                      className={`block px-4 py-2 ${showWorkingHours && !showAllPatientsPage && !showAnalysesPage && !showDoctorsPage && !showWaitingRoom ? 'text-blue-600 font-bold bg-blue-50' : 'text-slate-600'} rounded-lg`}
+                    >
+                      Horaires
                     </a>
                   </>
                 )}
@@ -372,7 +507,49 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {role === 'patient' ? (
+        {role === 'patient' && showPatientInfo ? (
+          <PatientInfoForm
+            key={`patient-info-${currentPatientEmail}-${patientInfoKey}`}
+            patientEmail={currentPatientEmail}
+            patient={patients[currentPatientEmail]}
+            onSave={async (updatedPatient) => {
+              try {
+                // La sauvegarde a déjà été faite dans PatientInfoForm, on recharge juste pour synchroniser
+                // Recharger les patients depuis Supabase pour avoir les données les plus récentes
+                const loadedPatients = await patientDB.getAll();
+                // Mettre à jour l'état avec toutes les données rechargées
+                setPatients(loadedPatients);
+                
+                // S'assurer que le patient mis à jour est dans l'état
+                const emailLower = currentPatientEmail.toLowerCase();
+                if (loadedPatients[emailLower]) {
+                  // Mettre à jour le nom d'utilisateur avec les données rechargées
+                  setUserName(`${loadedPatients[emailLower].firstName} ${loadedPatients[emailLower].name}`);
+                } else {
+                  // Si le patient n'est pas dans les données chargées, l'ajouter
+                  setPatients(prev => ({
+                    ...prev,
+                    [emailLower]: updatedPatient
+                  }));
+                  setUserName(`${updatedPatient.firstName} ${updatedPatient.name}`);
+                }
+              } catch (error) {
+                console.error('Erreur lors du rechargement des patients:', error);
+                // En cas d'erreur, mettre à jour quand même l'état local
+                const emailLower = currentPatientEmail.toLowerCase();
+                setPatients(prev => ({
+                  ...prev,
+                  [emailLower]: updatedPatient
+                }));
+                setUserName(`${updatedPatient.firstName} ${updatedPatient.name}`);
+              }
+            }}
+            onBack={() => {
+              setShowPatientInfo(false);
+              setPatientView('overview');
+            }}
+          />
+        ) : role === 'patient' ? (
           <PatientDashboard 
             userName={userName} 
             appointments={appointments}
@@ -398,7 +575,11 @@ const App: React.FC = () => {
             patientEmail={currentPatientEmail}
             analyses={analyses.filter(a => a.patientEmail?.toLowerCase() === currentPatientEmail.toLowerCase())}
             initialView={patientView}
-            onViewChange={setPatientView}
+            onViewChange={(view) => {
+              setPatientView(view);
+              setShowPatientInfo(false);
+            }}
+            doctorSettings={doctorSettingsMap}
           />
         ) : showWaitingRoom ? (
           <WaitingRoom
@@ -445,6 +626,27 @@ const App: React.FC = () => {
             }}
             onDeleteDoctor={(id) => {
               setDoctors(doctors.filter(d => d.id !== id));
+            }}
+          />
+        ) : showWorkingHours ? (
+          <WorkingHoursManagement
+            doctors={doctors}
+            onBack={async () => {
+              setShowWorkingHours(false);
+              // Recharger les horaires après modification
+              const loadedWorkingHours = await workingHoursDB.getAll();
+              setDoctorSettingsMap(loadedWorkingHours);
+            }}
+            onHoursSaved={async () => {
+              // Recharger les horaires après chaque sauvegarde automatique
+              try {
+                console.log('[App] Rechargement des horaires après sauvegarde automatique');
+                const loadedWorkingHours = await workingHoursDB.getAll();
+                setDoctorSettingsMap(loadedWorkingHours);
+                console.log('[App] Horaires rechargés:', Object.keys(loadedWorkingHours));
+              } catch (error) {
+                console.error('[App] Erreur lors du rechargement des horaires:', error);
+              }
             }}
           />
         ) : (

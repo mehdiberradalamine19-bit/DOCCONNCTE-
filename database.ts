@@ -1,4 +1,4 @@
-import { Appointment, Patient, PatientInfo, MedicalAnalysis } from './types';
+import { Appointment, Patient, PatientInfo, MedicalAnalysis, DoctorPlanningSettings, Doctor } from './types';
 import { supabase, appointmentToRow, rowToAppointment, patientToRow, rowToPatient, analysisToRow, rowToAnalysis } from './supabase';
 
 // Fonctions pour gérer les rendez-vous avec Supabase
@@ -211,36 +211,60 @@ export const patientDB = {
   save: async (patient: Patient): Promise<void> => {
     try {
       const row = patientToRow(patient);
+      const emailLower = patient.email.toLowerCase();
       
-      // Vérifier si le patient existe déjà
-      const { data: existing } = await supabase
+      console.log('[patientDB.save] Sauvegarde du patient:', {
+        email: emailLower,
+        firstName: patient.firstName,
+        name: patient.name,
+        bloodType: patient.bloodType,
+        address: patient.address,
+        city: patient.city,
+      });
+      
+      // Vérifier si le patient existe déjà (sans utiliser .single() pour éviter l'erreur si aucun résultat)
+      const { data: existing, error: checkError } = await supabase
         .from('patients')
         .select('id')
-        .eq('email', patient.email.toLowerCase())
-        .single();
+        .eq('email', emailLower)
+        .maybeSingle(); // Utiliser maybeSingle() au lieu de single() pour ne pas échouer si aucun résultat
+
+      // Si checkError n'est pas lié à "aucun résultat trouvé", le lancer
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('[patientDB.save] Erreur lors de la vérification du patient:', checkError);
+        throw checkError;
+      }
 
       if (existing) {
         // Mettre à jour
-        const { error } = await supabase
+        console.log('[patientDB.save] Mise à jour du patient existant');
+        const { data: updatedData, error } = await supabase
           .from('patients')
           .update(row)
-          .eq('email', patient.email.toLowerCase());
+          .eq('email', emailLower)
+          .select();
         
         if (error) {
-          console.error('Erreur lors de la mise à jour du patient:', error);
+          console.error('[patientDB.save] Erreur lors de la mise à jour du patient:', error);
           throw error;
         }
+        console.log('[patientDB.save] Patient mis à jour avec succès:', updatedData);
       } else {
         // Insérer
-        const { error } = await supabase.from('patients').insert([row]);
+        console.log('[patientDB.save] Insertion d\'un nouveau patient');
+        const { data: insertedData, error } = await supabase
+          .from('patients')
+          .insert([row])
+          .select();
         
         if (error) {
-          console.error('Erreur lors de l\'ajout du patient:', error);
+          console.error('[patientDB.save] Erreur lors de l\'ajout du patient:', error);
           throw error;
         }
+        console.log('[patientDB.save] Patient inséré avec succès:', insertedData);
       }
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde du patient:', error);
+      console.error('[patientDB.save] Erreur lors de la sauvegarde du patient:', error);
       throw error;
     }
   },
@@ -248,24 +272,42 @@ export const patientDB = {
   // Récupérer un patient par email
   getByEmail: async (email: string): Promise<Patient | undefined> => {
     try {
+      const emailLower = email.toLowerCase();
+      console.log('[patientDB.getByEmail] Recherche du patient:', emailLower);
+      
       const { data, error } = await supabase
         .from('patients')
         .select('*')
-        .eq('email', email.toLowerCase())
-        .single();
+        .eq('email', emailLower)
+        .maybeSingle(); // Utiliser maybeSingle() au lieu de single() pour éviter les erreurs
 
       if (error) {
         if (error.code === 'PGRST116') {
           // Aucun résultat trouvé
+          console.log('[patientDB.getByEmail] Aucun patient trouvé pour:', emailLower);
           return undefined;
         }
-        console.error('Erreur lors de la récupération du patient:', error);
+        console.error('[patientDB.getByEmail] Erreur lors de la récupération du patient:', error);
         return undefined;
       }
 
-      return data ? rowToPatient(data) : undefined;
+      if (data) {
+        const patient = rowToPatient(data);
+        console.log('[patientDB.getByEmail] Patient trouvé:', {
+          email: patient.email,
+          firstName: patient.firstName,
+          name: patient.name,
+          bloodType: patient.bloodType,
+          address: patient.address,
+          city: patient.city,
+        });
+        return patient;
+      }
+      
+      console.log('[patientDB.getByEmail] Aucune donnée retournée pour:', emailLower);
+      return undefined;
     } catch (error) {
-      console.error('Erreur lors de la récupération du patient:', error);
+      console.error('[patientDB.getByEmail] Erreur lors de la récupération du patient:', error);
       return undefined;
     }
   },
@@ -471,4 +513,125 @@ export const clearDatabase = async (): Promise<void> => {
   await supabase.from('appointments').delete().neq('id', '');
   await supabase.from('patients').delete().neq('id', '');
   await supabase.from('analyses').delete().neq('id', '');
+};
+
+// Fonctions pour gérer les horaires des médecins avec Supabase
+export const workingHoursDB = {
+  // Récupérer les horaires d'un médecin par son email
+  getByDoctorEmail: async (doctorEmail: string): Promise<DoctorPlanningSettings | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('doctor_planning_settings')
+        .select('*')
+        .eq('doctor_email', doctorEmail.toLowerCase())
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Erreur lors de la récupération des horaires:', error);
+        return null;
+      }
+
+      if (!data) return null;
+
+      return {
+        doctorEmail: data.doctor_email,
+        mode: data.mode as 'strict' | 'flexible',
+        workingHours: data.working_hours || [],
+        workingDays: data.working_days || [],
+        bufferMode: data.buffer_mode as 'per-consultations' | 'per-hour',
+        bufferFrequency: data.buffer_frequency || 3,
+        averageConsultationDuration: data.average_consultation_duration,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    } catch (error) {
+      console.error('Erreur lors de la récupération des horaires:', error);
+      return null;
+    }
+  },
+
+  // Sauvegarder les horaires d'un médecin
+  save: async (doctorId: string, doctorEmail: string, doctorName: string, workingDays: number[], workingHours: { start: string; end: string }[]): Promise<void> => {
+    try {
+      const emailLower = doctorEmail.toLowerCase();
+
+      // Vérifier si les horaires existent déjà
+      const { data: existing } = await supabase
+        .from('doctor_planning_settings')
+        .select('doctor_email')
+        .eq('doctor_email', emailLower)
+        .maybeSingle();
+
+      if (existing) {
+        // Mettre à jour
+        const { error } = await supabase
+          .from('doctor_planning_settings')
+          .update({
+            working_days: workingDays,
+            working_hours: workingHours,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('doctor_email', emailLower);
+
+        if (error) {
+          console.error('Erreur lors de la mise à jour des horaires:', error);
+          throw error;
+        }
+      } else {
+        // Insérer (avec les valeurs par défaut pour les autres champs)
+        const { error } = await supabase.from('doctor_planning_settings').insert([{
+          doctor_email: emailLower,
+          mode: 'flexible',
+          working_days: workingDays,
+          working_hours: workingHours,
+          buffer_mode: 'per-consultations',
+          buffer_frequency: 3,
+        }]);
+
+        if (error) {
+          console.error('Erreur lors de l\'ajout des horaires:', error);
+          throw error;
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des horaires:', error);
+      throw error;
+    }
+  },
+
+  // Récupérer tous les horaires
+  getAll: async (): Promise<Record<string, DoctorPlanningSettings>> => {
+    try {
+      const { data, error } = await supabase
+        .from('doctor_planning_settings')
+        .select('*');
+
+      if (error) {
+        console.error('Erreur lors de la récupération des horaires:', error);
+        return {};
+      }
+
+      const result: Record<string, DoctorPlanningSettings> = {};
+      if (data) {
+        data.forEach(row => {
+          result[row.doctor_email.toLowerCase()] = {
+            doctorEmail: row.doctor_email,
+            mode: row.mode as 'strict' | 'flexible',
+            workingHours: row.working_hours || [],
+            workingDays: row.working_days || [],
+            bufferMode: row.buffer_mode as 'per-consultations' | 'per-hour',
+            bufferFrequency: row.buffer_frequency || 3,
+            averageConsultationDuration: row.average_consultation_duration,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          };
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des horaires:', error);
+      return {};
+    }
+  },
 };
