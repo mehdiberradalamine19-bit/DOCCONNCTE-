@@ -5,6 +5,7 @@ import { DOCTORS } from '../constants';
 import { Appointment, AppointmentStatus, MedicalAnalysis, ConsultationType, AppointmentTypeId } from '../types';
 import { DEFAULT_APPOINTMENT_TYPES, generateTimeSlots, getAvailableSlotsForType, canPlaceAppointment, SLOT_DURATION_MINUTES } from '../planning';
 import type { TimeSlot, DoctorPlanningSettings } from '../types';
+import { workingHoursDB } from '../database';
 
 interface PatientDashboardProps {
   userName?: string;
@@ -15,6 +16,7 @@ interface PatientDashboardProps {
   analyses?: MedicalAnalysis[];
   initialView?: 'overview' | 'booking' | 'history' | 'doctors';
   onViewChange?: (view: 'overview' | 'booking' | 'history' | 'doctors') => void;
+  doctorSettings?: Record<string, DoctorPlanningSettings>;
 }
 
 export const PatientDashboard: React.FC<PatientDashboardProps> = ({ 
@@ -26,7 +28,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
   analyses = [],
   initialView = 'overview',
   onViewChange,
-  doctorSettings
+  doctorSettings = {}
 }) => {
   const setAppointments = (updater: Appointment[] | ((prev: Appointment[]) => Appointment[])) => {
     if (typeof updater === 'function') {
@@ -36,18 +38,23 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
     }
   };
   const [view, setView] = useState<'overview' | 'booking' | 'history' | 'doctors'>(initialView);
+  const prevInitialViewRef = React.useRef(initialView);
   
-  // Mettre à jour la vue si initialView change
+  // Mettre à jour la vue si initialView change depuis le parent (navigation externe)
   useEffect(() => {
-    setView(initialView);
+    if (initialView !== prevInitialViewRef.current) {
+      setView(initialView);
+      prevInitialViewRef.current = initialView;
+    }
   }, [initialView]);
 
-  // Notifier le parent quand la vue change
-  useEffect(() => {
+  // Fonction interne pour changer la vue et notifier le parent
+  const handleViewChange = (newView: 'overview' | 'booking' | 'history' | 'doctors') => {
+    setView(newView);
     if (onViewChange) {
-      onViewChange(view);
+      onViewChange(newView);
     }
-  }, [view, onViewChange]);
+  };
   const [bookingStep, setBookingStep] = useState(1);
   const [selectedDoctor, setSelectedDoctor] = useState<typeof DOCTORS[0] | null>(null);
   const [selectedDate, setSelectedDate] = useState<{ day: number; month: number; year: number } | null>(null);
@@ -107,9 +114,8 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
           <h2 className="text-2xl font-bold">Prendre un rendez-vous</h2>
           <button 
             onClick={() => { 
-              setView('overview'); 
+              handleViewChange('overview'); 
               setBookingStep(1);
-              if (onViewChange) onViewChange('overview');
             }}
             className="text-blue-600 hover:underline font-medium"
           >
@@ -385,9 +391,45 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
                  // Format de date pour la génération (YYYY-MM-DD)
                  const dateForGeneration = `${selectedDate.year}-${String(selectedDate.month + 1).padStart(2, '0')}-${String(selectedDate.day).padStart(2, '0')}`;
                  
-                 // Générer les créneaux automatiquement
+                 // Chercher les horaires du médecin sélectionné dans doctorSettings
+                 // Essayer plusieurs formats d'email pour trouver les horaires
+                 const doctorEmailVariants = [
+                   `doctor-${selectedDoctor.id}@example.com`.toLowerCase(), // Format utilisé dans WorkingHoursManagement
+                   selectedDoctor.name.toLowerCase().replace(/\s+/g, '.'), // Format nom.mehdi
+                   (selectedDoctor as any).email?.toLowerCase(), // Email direct si défini
+                 ];
+                 
+                 let currentDoctorSettings: DoctorPlanningSettings | undefined;
+                 
+                 // Chercher dans doctorSettings par clé (email en minuscules)
+                 for (const emailVariant of doctorEmailVariants) {
+                   if (emailVariant && doctorSettings[emailVariant]) {
+                     currentDoctorSettings = doctorSettings[emailVariant];
+                     console.log('[PatientInterface] Horaires trouvés avec email:', emailVariant);
+                     break;
+                   }
+                 }
+                 
+                 // Si pas trouvé par clé, chercher dans tous les settings
+                 if (!currentDoctorSettings) {
+                   currentDoctorSettings = Object.values(doctorSettings).find(s => {
+                     const sEmail = s.doctorEmail.toLowerCase();
+                     return doctorEmailVariants.some(v => v && sEmail === v) ||
+                            sEmail.includes(selectedDoctor.id.toLowerCase()) ||
+                            sEmail.includes(selectedDoctor.name.toLowerCase().replace(/\s+/g, '.'));
+                   });
+                 }
+                 
+                 console.log('[PatientInterface] Médecin sélectionné:', selectedDoctor.name, selectedDoctor.id);
+                 console.log('[PatientInterface] doctorSettings disponibles:', Object.keys(doctorSettings));
+                 console.log('[PatientInterface] Horaires trouvés:', currentDoctorSettings ? 'Oui' : 'Non');
+                 
+                 // Définir l'email du médecin pour defaultSettings
+                 const doctorEmail = doctorEmailVariants[0] || `doctor-${selectedDoctor.id}@example.com`;
+                 
+                 // Générer les créneaux automatiquement avec les horaires du médecin
                  const defaultSettings: DoctorPlanningSettings = {
-                   doctorEmail: selectedDoctor.name.toLowerCase().replace(/\s+/g, '.'),
+                   doctorEmail: doctorEmail,
                    mode: 'flexible',
                    workingHours: [
                      { start: '09:00', end: '12:00' },
@@ -400,7 +442,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
                  
                  const allSlots = generateTimeSlots(
                    dateForGeneration,
-                   doctorSettings || defaultSettings,
+                   currentDoctorSettings || defaultSettings,
                    appointments,
                    DEFAULT_APPOINTMENT_TYPES
                  );
@@ -459,14 +501,13 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
                                symptoms: symptoms.trim() || undefined
                              };
                              onAddAppointment(newAppt);
-                             setView('overview');
+                             handleViewChange('overview');
                              setBookingStep(1);
                              setSelectedDate(null);
                              setAppointmentType('In-person');
                              setConsultationType('consultation');
                              setCustomConsultationReason('');
                              setSymptoms('');
-                             if (onViewChange) onViewChange('overview');
                            }}
                            disabled={isAlreadyTaken}
                            className={`p-3 border rounded-xl font-medium text-center transition-colors ${
@@ -501,8 +542,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
           </div>
           <button
             onClick={() => {
-              setView('overview');
-              if (onViewChange) onViewChange('overview');
+              handleViewChange('overview');
             }}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all font-medium"
           >
@@ -564,7 +604,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
               <button
                 onClick={() => {
                   setSelectedDoctor(doctor);
-                  setView('booking');
+                  handleViewChange('booking');
                   setBookingStep(1);
                   if (onViewChange) onViewChange('booking');
                 }}
@@ -599,8 +639,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
           </div>
           <button
             onClick={() => {
-              setView('overview');
-              if (onViewChange) onViewChange('overview');
+              handleViewChange('overview');
             }}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all font-medium"
           >
@@ -686,7 +725,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
         <div className="mt-8 flex gap-4">
           <button
             onClick={() => {
-              setView('booking');
+              handleViewChange('booking');
               if (onViewChange) onViewChange('booking');
             }}
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all font-bold"
@@ -696,7 +735,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
           </button>
           <button
             onClick={() => {
-              setView('history');
+              handleViewChange('history');
               if (onViewChange) onViewChange('history');
             }}
             className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-900 rounded-xl hover:bg-slate-50 transition-all font-bold"
@@ -713,7 +752,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
           <h3 className="text-xl font-bold">Vos rendez-vous</h3>
           <button 
             onClick={() => {
-              setView('booking');
+              handleViewChange('booking');
               if (onViewChange) onViewChange('booking');
             }}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors font-medium text-sm"
@@ -741,7 +780,7 @@ export const PatientDashboard: React.FC<PatientDashboardProps> = ({
                 <p className="text-slate-500 mb-6">Vous n'avez pas encore de rendez-vous.</p>
                 <button 
                   onClick={() => {
-                    setView('booking');
+                    handleViewChange('booking');
                     if (onViewChange) onViewChange('booking');
                   }}
                   className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium"

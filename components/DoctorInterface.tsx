@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, Users, CheckCircle, XCircle, ChevronRight, Activity, TrendingUp, Phone, Mail, MapPin, ArrowLeft, User, Search, Plus, Edit, FileText, X, Video, UserCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, Clock, Users, CheckCircle, XCircle, ChevronRight, Activity, TrendingUp, Phone, Mail, MapPin, ArrowLeft, User, Search, Plus, Edit, FileText, X, Video, UserCircle, Heart } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Appointment, AppointmentStatus, PatientInfo } from '../types';
+import { Appointment, AppointmentStatus, PatientInfo, Patient } from '../types';
+import { appointmentDB } from '../database';
 
 
 interface DoctorDashboardProps {
@@ -29,6 +30,11 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
   const [showAddAppointmentModal, setShowAddAppointmentModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedPatientForDetail, setSelectedPatientForDetail] = useState<string | null>(null);
+
+  // Debug: surveiller les changements de selectedPatientForDetail
+  useEffect(() => {
+    console.log('[DoctorInterface] selectedPatientForDetail changé:', selectedPatientForDetail);
+  }, [selectedPatientForDetail]);
   const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'confirmed' | 'pending' | 'cancelled'>('all');
   const [flowPeriod, setFlowPeriod] = useState<'week' | 'month' | 'year'>('week');
   const [flowChartType, setFlowChartType] = useState<'area' | 'line' | 'bar'>('area');
@@ -521,6 +527,7 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
   // Si on affiche la page de tous les patients
   if (showAllPatients) {
     return (
+      <>
       <div className="space-y-8 animate-in fade-in duration-700">
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -572,7 +579,12 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
             {filteredAllPatients.map((patient) => (
               <div 
                 key={patient.id} 
-                onClick={() => setSelectedPatientForDetail(patient.email)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DoctorInterface] Clic sur patient:', patient.email);
+                  setSelectedPatientForDetail(patient.email);
+                }}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="flex items-start gap-4 mb-4">
@@ -626,12 +638,28 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
           </div>
         )}
       </div>
+      
+      {/* Patient Detail Modal - rendu dans cette vue */}
+      {selectedPatientForDetail && (
+        <PatientDetailModal
+          key={`patient-modal-${selectedPatientForDetail}`}
+          patientEmail={selectedPatientForDetail}
+          patients={patients}
+          appointments={appointments}
+          onClose={() => {
+            console.log('[DoctorInterface] Fermeture du modal depuis showAllPatients');
+            setSelectedPatientForDetail(null);
+          }}
+        />
+      )}
+      </>
     );
   }
 
   // Si on affiche la page des consultations annulées
   if (showCancelledAppointments) {
     return (
+      <>
       <div className="space-y-8 animate-in fade-in duration-700">
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -657,7 +685,12 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
             {cancelledPatients.map((patient) => (
               <div 
                 key={patient.id} 
-                onClick={() => setSelectedPatientForDetail(patient.email)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DoctorInterface] Clic sur patient:', patient.email);
+                  setSelectedPatientForDetail(patient.email);
+                }}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="flex items-start gap-4 mb-4">
@@ -716,12 +749,28 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
           </div>
         )}
       </div>
+      
+      {/* Patient Detail Modal - rendu dans cette vue */}
+      {selectedPatientForDetail && (
+        <PatientDetailModal
+          key={`patient-modal-${selectedPatientForDetail}`}
+          patientEmail={selectedPatientForDetail}
+          patients={patients}
+          appointments={appointments}
+          onClose={() => {
+            console.log('[DoctorInterface] Fermeture du modal depuis showCancelledAppointments');
+            setSelectedPatientForDetail(null);
+          }}
+        />
+      )}
+      </>
     );
   }
 
   // Si on affiche la page des patients du jour
   if (showPatientsToday) {
     return (
+      <>
       <div className="space-y-8 animate-in fade-in duration-700">
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -747,7 +796,12 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
             {patientsToday.map((patient) => (
               <div 
                 key={patient.id} 
-                onClick={() => setSelectedPatientForDetail(patient.email)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('[DoctorInterface] Clic sur patient:', patient.email);
+                  setSelectedPatientForDetail(patient.email);
+                }}
                 className="bg-white p-6 rounded-2xl border border-slate-200 hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="flex items-start gap-4 mb-4">
@@ -800,6 +854,21 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
           </div>
         )}
       </div>
+      
+      {/* Patient Detail Modal - rendu dans cette vue */}
+      {selectedPatientForDetail && (
+        <PatientDetailModal
+          key={`patient-modal-${selectedPatientForDetail}`}
+          patientEmail={selectedPatientForDetail}
+          patients={patients}
+          appointments={appointments}
+          onClose={() => {
+            console.log('[DoctorInterface] Fermeture du modal depuis showPatientsToday');
+            setSelectedPatientForDetail(null);
+          }}
+        />
+      )}
+      </>
     );
   }
 
@@ -858,13 +927,21 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
               <h3 className="text-xl font-bold text-slate-900">{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h3>
               <div className="flex gap-1">
                 <button 
-                  onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() - 1)))}
+                  onClick={() => {
+                    const newDate = new Date(currentMonth);
+                    newDate.setMonth(newDate.getMonth() - 1);
+                    setCurrentMonth(newDate);
+                  }}
                   className="p-1 hover:bg-slate-50 rounded"
                 >
                   &lt;
                 </button>
                 <button 
-                  onClick={() => setCurrentMonth(new Date(currentMonth.setMonth(currentMonth.getMonth() + 1)))}
+                  onClick={() => {
+                    const newDate = new Date(currentMonth);
+                    newDate.setMonth(newDate.getMonth() + 1);
+                    setCurrentMonth(newDate);
+                  }}
                   className="p-1 hover:bg-slate-50 rounded"
                 >
                   &gt;
@@ -875,30 +952,67 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
               <span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span>
             </div>
             <div className="grid grid-cols-7 gap-2 text-center">
-              {Array.from({length: 30}).map((_, i) => {
-                const day = i + 1;
-                const isSelected = selectedDate === day;
-                const hasAppointments = appointments.some(appt => {
-                  const match = appt.date.match(/(\d+)/);
-                  return match && parseInt(match[1]) === day;
+              {(() => {
+                const year = currentMonth.getFullYear();
+                const month = currentMonth.getMonth();
+                
+                // Premier jour du mois (0 = dimanche, 1 = lundi, etc.)
+                const firstDay = new Date(year, month, 1);
+                const firstDayOfWeek = firstDay.getDay();
+                // Convertir dimanche (0) en 7 pour qu'il soit le dernier jour
+                const firstDayIndex = firstDayOfWeek === 0 ? 7 : firstDayOfWeek;
+                const adjustedFirstDayIndex = firstDayIndex - 1; // 0 = lundi, 6 = dimanche
+                
+                // Dernier jour du mois
+                const lastDay = new Date(year, month + 1, 0);
+                const daysInMonth = lastDay.getDate();
+                
+                // Créer les cellules vides pour les jours avant le 1er du mois
+                const emptyCells = Array.from({length: adjustedFirstDayIndex}).map((_, i) => (
+                  <div key={`empty-${i}`} className="p-3"></div>
+                ));
+                
+                // Créer les cellules pour les jours du mois
+                const dayCells = Array.from({length: daysInMonth}).map((_, i) => {
+                  const day = i + 1;
+                  const dayDate = new Date(year, month, day);
+                  const isToday = dayDate.toDateString() === new Date().toDateString();
+                  const isSelected = selectedDate === day;
+                  
+                  // Vérifier s'il y a des rendez-vous ce jour
+                  const dayDateStr = `${day} ${monthNames[month]} ${year}`;
+                  const hasAppointments = appointments.some(appt => {
+                    // Comparer avec la date formatée du rendez-vous
+                    return appt.date === dayDateStr || appt.date.startsWith(`${day} ${monthNames[month]}`);
+                  });
+                  
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => handleDateClick(day)}
+                      className={`p-3 text-sm rounded-lg transition-colors cursor-pointer ${
+                        isSelected 
+                          ? 'bg-blue-600 text-white font-bold shadow-lg' 
+                          : isToday
+                          ? 'bg-blue-50 text-blue-700 font-semibold border-2 border-blue-300'
+                          : hasAppointments
+                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold'
+                          : 'hover:bg-blue-50 text-slate-700'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
                 });
                 
-                return (
-                  <button
-                    key={i}
-                    onClick={() => handleDateClick(day)}
-                    className={`p-3 text-sm rounded-lg transition-colors cursor-pointer ${
-                      isSelected 
-                        ? 'bg-blue-600 text-white font-bold shadow-lg' 
-                        : hasAppointments
-                        ? 'bg-blue-100 text-blue-700 hover:bg-blue-200 font-semibold'
-                        : 'hover:bg-blue-50'
-                    }`}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
+                // Créer les cellules vides pour les jours après le dernier du mois (pour compléter la grille)
+                const remainingCells = 42 - emptyCells.length - dayCells.length; // 42 = 6 semaines * 7 jours
+                const trailingEmptyCells = Array.from({length: Math.max(0, remainingCells)}).map((_, i) => (
+                  <div key={`trailing-empty-${i}`} className="p-3"></div>
+                ));
+                
+                return [...emptyCells, ...dayCells, ...trailingEmptyCells];
+              })()}
             </div>
           </section>
 
@@ -1351,10 +1465,14 @@ export const DoctorDashboard: React.FC<DoctorDashboardProps> = ({
       {/* Patient Detail Modal */}
       {selectedPatientForDetail && (
         <PatientDetailModal
+          key={`patient-modal-${selectedPatientForDetail}`}
           patientEmail={selectedPatientForDetail}
           patients={patients}
           appointments={appointments}
-          onClose={() => setSelectedPatientForDetail(null)}
+          onClose={() => {
+            console.log('[DoctorInterface] Fermeture du modal');
+            setSelectedPatientForDetail(null);
+          }}
         />
       )}
     </div>
@@ -1816,55 +1934,554 @@ const AppointmentDetailModal: React.FC<{
   );
 };
 
-// Patient Detail Modal Component
+// Patient Detail Modal Component - Popup simple
 const PatientDetailModal: React.FC<{
   patientEmail: string;
   patients: PatientInfo;
   appointments: Appointment[];
   onClose: () => void;
 }> = ({ patientEmail, patients, appointments, onClose }) => {
-  const patient = patients[patientEmail.toLowerCase()];
-  if (!patient) return null;
+  const [patient, setPatient] = useState<Patient | undefined>(patients[patientEmail.toLowerCase()]);
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [formData, setFormData] = useState<Partial<Patient>>({});
+  const [saving, setSaving] = useState(false);
+
+  console.log('[PatientDetailModal] patientEmail:', patientEmail);
+  console.log('[PatientDetailModal] selectedPatientForDetail:', patientEmail);
+
+  // Recharger le patient depuis Supabase quand le modal s'ouvre
+  useEffect(() => {
+    const loadPatient = async () => {
+      if (patientEmail) {
+        setLoading(true);
+        try {
+          const { patientDB } = await import('../database');
+          const loadedPatient = await patientDB.getByEmail(patientEmail);
+          if (loadedPatient) {
+            setPatient(loadedPatient);
+          } else {
+            // Si pas trouvé dans Supabase, utiliser celui dans l'état local ou créer un patient minimal
+            const localPatient = patients[patientEmail.toLowerCase()];
+            if (localPatient) {
+              setPatient(localPatient);
+            } else {
+              // Créer un patient minimal si aucune donnée n'existe
+              setPatient({
+                id: patientEmail.toLowerCase().replace(/\s+/g, '-'),
+                email: patientEmail.toLowerCase(),
+                firstName: patientEmail.split('@')[0] || 'Patient',
+                name: '',
+                phone: '',
+                gender: '',
+                age: '',
+                password: ''
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Erreur lors du chargement du patient:', error);
+          // En cas d'erreur, utiliser celui dans l'état local ou créer un patient minimal
+          const localPatient = patients[patientEmail.toLowerCase()];
+          if (localPatient) {
+            setPatient(localPatient);
+          } else {
+            setPatient({
+              id: patientEmail.toLowerCase().replace(/\s+/g, '-'),
+              email: patientEmail.toLowerCase(),
+              firstName: patientEmail.split('@')[0] || 'Patient',
+              name: '',
+              phone: '',
+              gender: '',
+              age: '',
+              password: ''
+            });
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    loadPatient();
+  }, [patientEmail, patients]);
+
+  // Initialiser formData quand le patient est chargé ou quand on passe en mode édition
+  useEffect(() => {
+    if (patient && (isEditing || Object.keys(formData).length === 0)) {
+      setFormData({
+        firstName: patient.firstName || '',
+        name: patient.name || '',
+        email: patient.email || '',
+        phone: patient.phone || '',
+        gender: patient.gender || '',
+        age: patient.age || '',
+        bloodType: patient.bloodType || '',
+        address: patient.address || '',
+        city: patient.city || '',
+        postalCode: patient.postalCode || '',
+        dateOfBirth: patient.dateOfBirth || '',
+        allergies: patient.allergies || '',
+        medicalHistory: patient.medicalHistory || '',
+        emergencyContact: patient.emergencyContact || '',
+        emergencyPhone: patient.emergencyPhone || '',
+        doctorNotes: patient.doctorNotes || '',
+      });
+    }
+  }, [patient, isEditing]);
+
+  // Fonction pour sauvegarder les modifications
+  const handleSave = async () => {
+    if (!patient) return;
+
+    setSaving(true);
+    try {
+      const { patientDB } = await import('../database');
+      const updatedPatient: Patient = {
+        ...patient,
+        ...formData,
+      };
+      
+      await patientDB.save(updatedPatient);
+      setPatient(updatedPatient);
+      setIsEditing(false);
+      alert('Informations du patient mises à jour avec succès !');
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      alert('Erreur lors de la sauvegarde. Vérifiez la console pour plus de détails.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Toujours afficher le modal, même si le patient n'a pas toutes les infos
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600">Chargement des informations du patient...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Créer un patient minimal si aucune donnée n'existe
+  const displayPatient = patient || {
+    id: patientEmail.toLowerCase().replace(/\s+/g, '-'),
+    email: patientEmail.toLowerCase(),
+    firstName: patientEmail.split('@')[0] || 'Patient',
+    name: '',
+    phone: '',
+    gender: '',
+    age: '',
+    password: ''
+  };
 
   const patientAppointments = appointments.filter(appt => 
     appt.patientEmail?.toLowerCase() === patientEmail.toLowerCase()
   );
 
+  // Si pas de patient, ne rien afficher
+  if (!patientEmail) {
+    console.log('[PatientDetailModal] Pas de patientEmail, fermeture du modal');
+    return null;
+  }
+
+  console.log('[PatientDetailModal] Rendu du modal avec patient:', displayPatient.firstName, displayPatient.name);
+  console.log('[PatientDetailModal] patientEmail:', patientEmail);
+  console.log('[PatientDetailModal] displayPatient:', displayPatient);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
+      style={{ zIndex: 9999, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
+      onClick={(e) => {
+        console.log('[PatientDetailModal] Clic sur le fond');
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-white rounded-xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+        style={{ position: 'relative', zIndex: 10000 }}
+      >
         <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-900">Détails du patient</h2>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
-            <X className="w-5 h-5" />
-          </button>
+          <h2 className="text-2xl font-bold text-slate-900">{isEditing ? 'Modifier le patient' : 'Détails du patient'}</h2>
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50"
+                  disabled={saving}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Enregistrement...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Enregistrer</span>
+                    </>
+                  )}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span>Modifier</span>
+                </button>
+                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
+                  <X className="w-5 h-5" />
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
           {/* Patient Info */}
           <div className="bg-white border border-slate-200 p-6 rounded-xl">
-            <div className="flex items-center gap-6">
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl font-black">
-                {patient.firstName[0]}{patient.name[0] || patient.firstName[1] || ''}
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold mb-2 text-slate-900">{patient.firstName} {patient.name}</h3>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Phone className="w-4 h-4" />
-                    <span>{patient.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Mail className="w-4 h-4" />
-                    <span>{patient.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <UserCircle className="w-4 h-4" />
-                    <span>{patient.gender}, {patient.age} ans</span>
+            {isEditing ? (
+              // Mode édition - Formulaire complet
+              <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+                {/* Informations personnelles */}
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <User className="w-5 h-5 text-blue-600" />
+                    Informations personnelles
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Prénom</label>
+                      <input
+                        type="text"
+                        name="firstName"
+                        value={formData.firstName || ''}
+                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Nom</label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name || ''}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Téléphone</label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone || ''}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Genre</label>
+                      <select
+                        name="gender"
+                        value={formData.gender || ''}
+                        onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Sélectionner</option>
+                        <option value="Homme">Homme</option>
+                        <option value="Femme">Femme</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Âge</label>
+                      <input
+                        type="number"
+                        name="age"
+                        value={formData.age || ''}
+                        onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Date de naissance</label>
+                      <input
+                        type="date"
+                        name="dateOfBirth"
+                        value={formData.dateOfBirth || ''}
+                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
                 </div>
+
+                {/* Informations médicales */}
+                <div className="pt-6 border-t border-slate-200">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <Heart className="w-5 h-5 text-red-600" />
+                    Informations médicales
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Groupe sanguin</label>
+                      <select
+                        name="bloodType"
+                        value={formData.bloodType || ''}
+                        onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        <option value="">Sélectionner</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Allergies</label>
+                      <textarea
+                        name="allergies"
+                        value={formData.allergies || ''}
+                        onChange={(e) => setFormData({ ...formData, allergies: e.target.value })}
+                        rows={2}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Antécédents médicaux</label>
+                      <textarea
+                        name="medicalHistory"
+                        value={formData.medicalHistory || ''}
+                        onChange={(e) => setFormData({ ...formData, medicalHistory: e.target.value })}
+                        rows={3}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="pt-6 border-t border-slate-200">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    Adresse
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Adresse</label>
+                      <input
+                        type="text"
+                        name="address"
+                        value={formData.address || ''}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Ville</label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={formData.city || ''}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Code postal</label>
+                      <input
+                        type="text"
+                        name="postalCode"
+                        value={formData.postalCode || ''}
+                        onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact d'urgence */}
+                <div className="pt-6 border-t border-slate-200">
+                  <h3 className="text-lg font-bold text-slate-900 mb-4">Contact d'urgence</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Contact d'urgence</label>
+                      <input
+                        type="text"
+                        name="emergencyContact"
+                        value={formData.emergencyContact || ''}
+                        onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-2">Téléphone d'urgence</label>
+                      <input
+                        type="tel"
+                        name="emergencyPhone"
+                        value={formData.emergencyPhone || ''}
+                        onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
+                        className="w-full px-4 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              // Mode lecture - Affichage des informations
+              <>
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-3xl font-black">
+                    {displayPatient.firstName[0]}{displayPatient.name[0] || displayPatient.firstName[1] || '?'}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-2 text-slate-900">
+                      {displayPatient.firstName} {displayPatient.name || '(Nom non renseigné)'}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <Phone className="w-4 h-4" />
+                        <span>{displayPatient.phone || 'Non renseigné'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <Mail className="w-4 h-4" />
+                        <span>{displayPatient.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-slate-600">
+                        <UserCircle className="w-4 h-4" />
+                        <span>{displayPatient.gender || 'Non renseigné'}{displayPatient.age ? `, ${displayPatient.age} ans` : ''}</span>
+                      </div>
+                      {displayPatient.dateOfBirth && (
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <CalendarIcon className="w-4 h-4" />
+                          <span>Né(e) le {displayPatient.dateOfBirth}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Informations médicales */}
+                <div className="mt-6 pt-6 border-t border-slate-200">
+                  <h4 className="text-lg font-bold text-slate-900 mb-4">Informations médicales</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {displayPatient.bloodType ? (
+                      <div className="flex items-center gap-2 text-slate-700">
+                        <span className="font-semibold">Groupe sanguin:</span>
+                        <span className="px-3 py-1 bg-red-50 text-red-700 rounded-lg font-bold">{displayPatient.bloodType}</span>
+                      </div>
+                    ) : (
+                      <div className="text-slate-500 italic">Groupe sanguin: Non renseigné</div>
+                    )}
+                    {displayPatient.allergies ? (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-700">Allergies:</span>
+                        <p className="text-slate-600 mt-1 p-3 bg-amber-50 border border-amber-200 rounded-lg">{displayPatient.allergies}</p>
+                      </div>
+                    ) : (
+                      <div className="md:col-span-2 text-slate-500 italic">Allergies: Non renseigné</div>
+                    )}
+                    {displayPatient.medicalHistory ? (
+                      <div className="md:col-span-2">
+                        <span className="font-semibold text-slate-700">Antécédents médicaux:</span>
+                        <p className="text-slate-600 mt-1 p-3 bg-blue-50 border border-blue-200 rounded-lg whitespace-pre-wrap">{displayPatient.medicalHistory}</p>
+                      </div>
+                    ) : (
+                      <div className="md:col-span-2 text-slate-500 italic">Antécédents médicaux: Non renseigné</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Adresse */}
+                <div className="mt-6 pt-6 border-t border-slate-200">
+                  <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    Adresse
+                  </h4>
+                  {(displayPatient.address || displayPatient.city || displayPatient.postalCode) ? (
+                    <div className="text-slate-600 space-y-1">
+                      {displayPatient.address && <p>{displayPatient.address}</p>}
+                      {(displayPatient.city || displayPatient.postalCode) && (
+                        <p>{displayPatient.postalCode} {displayPatient.city}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 italic">Adresse: Non renseignée</div>
+                  )}
+                </div>
+
+                {/* Contact d'urgence */}
+                <div className="mt-6 pt-6 border-t border-slate-200">
+                  <h4 className="text-lg font-bold text-slate-900 mb-4">Contact d'urgence</h4>
+                  {(displayPatient.emergencyContact || displayPatient.emergencyPhone) ? (
+                    <div className="space-y-2 text-slate-600">
+                      {displayPatient.emergencyContact && (
+                        <div className="flex items-center gap-2">
+                          <UserCircle className="w-4 h-4" />
+                          <span>{displayPatient.emergencyContact}</span>
+                        </div>
+                      )}
+                      {displayPatient.emergencyPhone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4" />
+                          <span>{displayPatient.emergencyPhone}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 italic">Contact d'urgence: Non renseigné</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Notes du médecin */}
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h4 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              Notes du médecin
+            </h4>
+            {isEditing ? (
+              <textarea
+                value={formData.doctorNotes || ''}
+                onChange={(e) => setFormData({ ...formData, doctorNotes: e.target.value })}
+                placeholder="Ajoutez vos notes sur ce patient..."
+                rows={6}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg text-slate-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+            ) : (
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg min-h-[120px]">
+                {displayPatient.doctorNotes ? (
+                  <p className="text-slate-700 whitespace-pre-wrap">{displayPatient.doctorNotes}</p>
+                ) : (
+                  <p className="text-slate-400 italic">Aucune note pour ce patient</p>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           {/* Appointments History */}
